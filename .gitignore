@@ -1,0 +1,6 @@
+.claude/
+.idea/
+hong/
+__pycache__/
+
+.gitignore/
