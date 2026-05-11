@@ -6,23 +6,28 @@ from math import sqrt
 import pyautogui
 import time
 import random
+import threading
 from datetime import datetime
 
-from conf import *
-from card_conf import *
+from src.conf import *
+from src.card_conf import *
 from src.router import RouterA
 from src.enums import CardMap
 
 
 class Base:
 
-    def __init__(self):
+    def __init__(self, stop_event=None):
         self.duration = 0.5  # 鼠标移动间隙速度
+        self._stop_event = stop_event or threading.Event()
 
-    @staticmethod
-    def timeout(sec):
-        # 设置延迟，防止操作太快
-        time.sleep(sec)  # 等待2秒，给你时间将鼠标移出脚本运行区域
+    def _stop_check(self):
+        """检查是否需要停止任务"""
+        return self._stop_event.is_set()
+
+    def timeout(self, sec):
+        """等待指定秒数，stop_event 被设置时提前返回"""
+        self._stop_event.wait(timeout=sec)
 
     def move_mouse(self, x, y, click=False, click_count=1, sec=0):
         # 移动鼠标到指定坐标 (1000, 410)
@@ -66,7 +71,7 @@ class Base:
         # 因为各个地图的回城的加载时间不一致，所以这里稍微多等待几秒,最多等待12s则报错
         count = 0
         status = False
-        while True:
+        while not self._stop_check():
             count += 1
             if pyautogui.pixel(*BUTTONS[BT_TRAN]) == BUTTONS_COLORS[BT_TRAN]:
                 self.click(BT_TRAN)
@@ -89,8 +94,8 @@ class DrawCard(Base):
             如果存在金卡，或者红卡，则自动调整金币300进行抽卡
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, stop_event=None):
+        super().__init__(stop_event)
         # 初始化抽卡状态存储
         self.card_pos_color = {"A": "", "B": "", "C": ""}
         self.card_role = {"A": "", "B": "", "C": ""}
@@ -213,12 +218,12 @@ class DrawCard(Base):
 
     def run(self):
         """主逻辑执行"""
-        while True:
+        while not self._stop_check():
             print('')
             # 判断ABC三张卡颜色
             self.check_card_color()
             # 判断三张卡角色
-            self.check_card_role()
+            # self.check_card_role()
             # 整理钻石设定
             self.load_diamond_set()
             # 刷新卡状态
@@ -230,24 +235,24 @@ class DrawCard(Base):
                 # 如果有金卡或红卡，则调整倍数为最大
                 if "gold" in self.card_color or "red" in self.card_color:
                     self.click(BT_RATE)
-                self.click(BT_DRAW, sec=4)
+                self.click(BT_DRAW, sec=3)
                 self.count += 1
                 # 判定是否存在高倍钻石抽取设定，若指定金红卡被抽取，则继续，若未抽取，则继续用钻石抽取
-                if self.if_continue_draw():
-                    self.click_drop()
+                # if self.if_continue_draw():
+                self.click_drop()
             else:
                 self.click_drop()
                 print(
                     f'目前抽取结果汇总=======>> 抽取次数：{self.count}, 红卡次数：{self.red_count}, 金卡次数：{self.gold_count}')
-            self.check_card_role()
+            # self.check_card_role()
             print('开启循环下一次')
 
 
 class AutoFight(Base, RouterA):
     """指定特定关卡进行自动路线清本"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, stop_event=None):
+        super().__init__(stop_event)
         # 首先确保自己自己在主城
         self.click_back_home()
 
@@ -263,10 +268,12 @@ class AutoFight(Base, RouterA):
 
     def rush_wood(self):
         # 进入战斗
-        while True:
+        while not self._stop_check():
             self.check_city_load_complete()
             self.click_level(WOOD_LEVEL)
             for direction, sec in WOOD_ROUTER:
+                if self._stop_check():
+                    return
                 self.move(direction, sec)
             self.click_back_home()
 
@@ -274,8 +281,8 @@ class AutoFight(Base, RouterA):
 class DailyTask(Base):
     """日常"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, stop_event=None):
+        super().__init__(stop_event)
         self.duration = 0.2  # 鼠标移动间隙速度
         self.box_limit = 30  # 每日箱子最大领取次数
         self.pk_limit = 4  # 每日免费战斗次数
@@ -311,14 +318,16 @@ class DailyTask(Base):
     def rush_quick(self):
         # 快速拿箱子，刷8-2 F4
         # 进入战斗
-        while self.box_limit:
+        while self.box_limit and not self._stop_check():
             self.check_city_load_complete()
             self.click_level(DAILY_LEVEL)
             for num, router in enumerate(F4_ROUTER, start=1):
                 # todo 需要解决1、中断后需检测还可以看几次广告，2、解决报错问题，若报错需要重来
                 self.move(router[0], router[1], sec=1)
+                if self._stop_check():
+                    return
                 if num % 2 == 0:
-                    time.sleep(4)
+                    self.timeout(4)
                     self.pick_box(num // 2)
                     self.click_back_home()
 
@@ -364,14 +373,14 @@ class DailyTask(Base):
 
 if __name__ == '__main__':
     # 抽卡
-    dc = DrawCard()
-    dc.run()
+    # dc = DrawCard()
+    # dc.run()
 
     # dc.check_card_color()
     # dc.check_card_role()
 
     # 刷木头
-    # AutoFight().rush_wood()
+    AutoFight().rush_wood()
 
     # 刷日常
     # DailyTask().rush_all()
