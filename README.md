@@ -1,3 +1,5 @@
+
+
 ## Description:
 
 This game script was developed to free my hands. Learn automation operations, Pyqt, 
@@ -18,7 +20,7 @@ pip install -r requirement.txt
 
 **How to use the scripts?**
 
-At present, the corresponding functions can only be executed through/src/*mailian.py*. I will continue to connect the UI interface and script code in the future. Coming soon.
+At present, the corresponding functions can only be executed through/src/*bailian.py*. I will continue to connect the UI interface and script code in the future. Coming soon.
 
 ![mainland](feature/code1.png)
 
